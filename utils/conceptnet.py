@@ -5,6 +5,7 @@ import math
 from tqdm import tqdm
 import numpy as np
 import sys
+import pdb
 
 try:
     from .utils import check_file
@@ -13,45 +14,55 @@ except ImportError:
 
 __all__ = ['extract_english', 'construct_graph', 'merged_relations']
 
-relation_groups = [
-    'atlocation/locatednear',
-    'capableof',
-    'causes/causesdesire/*motivatedbygoal',
-    'createdby',
-    'desires',
-    'antonym/distinctfrom',
-    'hascontext',
-    'hasproperty',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'isa/instanceof/definedas',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'partof/*hasa',
-    'relatedto/similarto/synonym',
-    'usedfor',
-    'receivesaction',
-]
+relation_groups = ['atlocation', 'locatednear', 'capableof', 'causes', 
+'causesdesire', 'motivatedbygoal', 'createdby', 'desires', 'antonym', 
+'distinctfrom', 'hascontext', 'hasproperty', 'hassubevent', 'hasfirstsubevent', 
+'haslastsubevent', 'hasprerequisite', 'entails', 'mannerof', 'isa', 
+'instanceof', 'definedas', 'madeof', 'notcapableof', 'notdesires', 
+'partof', 'hasa', 'relatedto', 'similarto', 'synonym', 'usedfor', 
+'receivesaction']
 
-merged_relations = [
-    'antonym',
-    'atlocation',
-    'capableof',
-    'causes',
-    'createdby',
-    'isa',
-    'desires',
-    'hassubevent',
-    'partof',
-    'hascontext',
-    'hasproperty',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'receivesaction',
-    'relatedto',
-    'usedfor',
-]
+merged_relations = [n for n in relation_groups]
+
+# relation_groups = [
+#     'atlocation/locatednear',
+#     'capableof',
+#     'causes/causesdesire/*motivatedbygoal',
+#     'createdby',
+#     'desires',
+#     'antonym/distinctfrom',
+#     'hascontext',
+#     'hasproperty',
+#     'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
+#     'isa/instanceof/definedas',
+#     'madeof',
+#     'notcapableof',
+#     'notdesires',
+#     'partof/*hasa',
+#     'relatedto/similarto/synonym',
+#     'usedfor',
+#     'receivesaction',
+# ]
+
+# merged_relations = [
+#     'antonym',
+#     'atlocation',
+#     'capableof',
+#     'causes',
+#     'createdby',
+#     'isa',
+#     'desires',
+#     'hassubevent',
+#     'partof',
+#     'hascontext',
+#     'hasproperty',
+#     'madeof',
+#     'notcapableof',
+#     'notdesires',
+#     'receivesaction',
+#     'relatedto',
+#     'usedfor',
+# ]
 
 relation_text = [
     'is the antonym of',
@@ -106,12 +117,16 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
     """
     print('extracting English concepts and relations from ConceptNet...')
     relation_mapping = load_merge_relation()
+    # import pdb; pdb.set_trace()
     num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
     cpnet_vocab = []
     concepts_seen = set()
     with open(conceptnet_path, 'r', encoding="utf8") as fin, \
             open(output_csv_path, 'w', encoding="utf8") as fout:
         for line in tqdm(fin, total=num_lines):
+            if 'fountain' in line and 'calligrapher' in line:
+                print(line)
+                pdb.set_trace()
             toks = line.strip().split('\t')
             if toks[2].startswith('/c/en/') and toks[3].startswith('/c/en/'):
                 """
@@ -121,16 +136,19 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
                     - Lowercase for uniformity.
                 """
                 rel = toks[1].split("/")[-1].lower()
-                head = del_pos(toks[2]).split("/")[-1].lower()
-                tail = del_pos(toks[3]).split("/")[-1].lower()
+                try:
+                    head = toks[2].split("/")[3].lower()
+                    tail = toks[3].split("/")[3].lower()
+                except:
+                    pdb.set_trace()
 
-                if not head.replace("_", "").replace("-", "").isalpha():
-                    continue
-                if not tail.replace("_", "").replace("-", "").isalpha():
-                    continue
+                # if not head.replace("_", "").replace("-", "").isalpha():
+                #     continue
+                # if not tail.replace("_", "").replace("-", "").isalpha():
+                #     continue
                 if rel not in relation_mapping:
                     continue
-
+                # import pdb; pdb.set_trace()
                 rel = relation_mapping[rel]
                 if rel.startswith("*"):
                     head, tail, rel = tail, head, rel[1:]
@@ -144,13 +162,14 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
                         concepts_seen.add(w)
                         cpnet_vocab.append(w)
 
-    with open(output_vocab_path, 'w') as fout:
+    with open(output_vocab_path, 'w', encoding='utf-8') as fout:
         for word in cpnet_vocab:
             fout.write(word + '\n')
 
     print(f'extracted ConceptNet csv file saved to {output_csv_path}')
     print(f'extracted concept vocabulary saved to {output_vocab_path}')
     print()
+    # pdb.set_trace()
 
 
 def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):

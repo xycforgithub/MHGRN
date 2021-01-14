@@ -11,8 +11,8 @@ BLANK_STR = "___"
 
 def convert_to_scitail_statement(qa_file: str, output_file: str):
     print(f'converting {qa_file} to entailment dataset...')
-    nrow = sum(1 for _ in open(qa_file, 'r'))
-    with open(output_file, 'w') as output_handle, open(qa_file, 'r') as qa_handle:
+    nrow = sum(1 for _ in open(qa_file, 'r', encoding='utf-8'))
+    with open(output_file, 'w', encoding='utf-8') as output_handle, open(qa_file, 'r', encoding='utf-8') as qa_handle:
         # print("Writing to {} from {}".format(output_file, qa_file))
         for line in tqdm(qa_handle, total=nrow):
             json_line = json.loads(line)

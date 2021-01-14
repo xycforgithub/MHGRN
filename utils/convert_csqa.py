@@ -42,18 +42,31 @@ __all__ = ['convert_to_entailment']
 BLANK_STR = "___"
 
 
-def convert_to_entailment(qa_file: str, output_file: str, ans_pos: bool=False):
+def convert_to_entailment(qa_file: str, output_file: str, ans_pos: bool=False, convert_to_mask: bool=False):
     print(f'converting {qa_file} to entailment dataset...')
-    nrow = sum(1 for _ in open(qa_file, 'r'))
-    with open(output_file, 'w') as output_handle, open(qa_file, 'r') as qa_handle:
+    nrow = sum(1 for _ in open(qa_file, 'r', encoding='utf-8'))
+    with open(output_file, 'w', encoding='utf-8') as output_handle, open(qa_file, 'r', encoding='utf-8') as qa_handle:
         # print("Writing to {} from {}".format(output_file, qa_file))
         for line in tqdm(qa_handle, total=nrow):
             json_line = json.loads(line)
-            output_dict = convert_qajson_to_entailment(json_line, ans_pos)
+            if convert_to_mask:
+                output_dict = add_mask_to_stem(json_line)
+            else:
+                output_dict = convert_qajson_to_entailment(json_line, ans_pos)
             output_handle.write(json.dumps(output_dict))
             output_handle.write("\n")
     print(f'converted statements saved to {output_file}')
     print()
+
+def add_mask_to_stem(qa_json):
+    question_text = qa_json["question"]["stem"]
+    fitb = replace_wh_word_with_blank(question_text, ' [MASK] ')
+    if '[MASK]' not in fitb:
+        # print("Can't create hypothesis from: '{}'. Appending {} !".format(question_text, BLANK_STR))
+        # Strip space, period and question mark at the end of the question and add a blank
+        fitb = re.sub(r"[\.\? ]*$", "", question_text.strip()) + " [MASK] " 
+    qa_json["question"]["stem"] = fitb
+    return qa_json
 
 
 # Convert the QA file json to output dictionary containing premise and hypothesis
@@ -76,12 +89,12 @@ def convert_qajson_to_entailment(qa_json: dict, ans_pos: bool):
 # hands quickly by rubbing them. Which skin surface will produce the most heat?" ->
 # "George wants to warm his hands quickly by rubbing them. ___ skin surface will produce the most
 # heat?
-def get_fitb_from_question(question_text: str) -> str:
-    fitb = replace_wh_word_with_blank(question_text)
+def get_fitb_from_question(question_text: str, blank_word: str=BLANK_STR) -> str:
+    fitb = replace_wh_word_with_blank(question_text, blank_word)
     if not re.match(".*_+.*", fitb):
         # print("Can't create hypothesis from: '{}'. Appending {} !".format(question_text, BLANK_STR))
         # Strip space, period and question mark at the end of the question and add a blank
-        fitb = re.sub(r"[\.\? ]*$", "", question_text.strip()) + " " + BLANK_STR
+        fitb = re.sub(r"[\.\? ]*$", "", question_text.strip()) + " " + blank_word
     return fitb
 
 
@@ -110,7 +123,7 @@ def create_hypothesis(fitb: str, choice: str, ans_pos: bool) -> str:
 
 
 # Identify the wh-word in the question and replace with a blank
-def replace_wh_word_with_blank(question_str: str):
+def replace_wh_word_with_blank(question_str: str, blank_word = BLANK_STR):
     # if "What is the name of the government building that houses the U.S. Congress?" in question_str:
     #     print()
     question_str = question_str.replace("What's", "What is")
@@ -147,28 +160,28 @@ def replace_wh_word_with_blank(question_str: str):
         # Replace the last question mark with period.
         question_str = re.sub(r"\?$", ".", question_str.strip())
         # Introduce the blank in place of the wh-word
-        fitb_question = (question_str[:wh_word_start_offset] + BLANK_STR +
+        fitb_question = (question_str[:wh_word_start_offset] + blank_word +
                          question_str[wh_word_start_offset + len(wh_word_found):])
         # Drop "of the following" as it doesn't make sense in the absence of a multiple-choice
         # question. E.g. "Which of the following force ..." -> "___ force ..."
-        final = fitb_question.replace(BLANK_STR + " of the following", BLANK_STR)
-        final = final.replace(BLANK_STR + " of these", BLANK_STR)
+        final = fitb_question.replace(blank_word + " of the following", blank_word)
+        final = final.replace(blank_word + " of these", blank_word)
         return final
 
     elif " them called?" in question_str:
-        return question_str.replace(" them called?", " " + BLANK_STR + ".")
+        return question_str.replace(" them called?", " " + blank_word + ".")
     elif " meaning he was not?" in question_str:
-        return question_str.replace(" meaning he was not?", " he was not " + BLANK_STR + ".")
+        return question_str.replace(" meaning he was not?", " he was not " + blank_word + ".")
     elif " one of these?" in question_str:
-        return question_str.replace(" one of these?", " " + BLANK_STR + ".")
+        return question_str.replace(" one of these?", " " + blank_word + ".")
     elif re.match(r".*[^\.\?] *$", question_str):
         # If no wh-word is found and the question ends without a period/question, introduce a
         # blank at the end. e.g. The gravitational force exerted by an object depends on its
-        return question_str + " " + BLANK_STR
+        return question_str + " " + blank_word
     else:
         # If all else fails, assume "this ?" indicates the blank. Used in Turk-authored questions
         # e.g. Virtually every task performed by living organisms requires this?
-        return re.sub(r" this[ \?]", " ___ ", question_str)
+        return re.sub(r" this[ \?]", blank_word, question_str)
 
 
 # Create the output json dictionary from the input json, premise and hypothesis statement

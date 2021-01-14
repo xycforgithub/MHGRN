@@ -11,8 +11,8 @@ BLANK_STR = "___"
 
 def convert_to_socialiqa_statement(qa_file: str, label_file: str, output_file1: str, output_file2: str):
     print(f'converting {qa_file} to entailment dataset...')
-    nrow = sum(1 for _ in open(qa_file, 'r'))
-    with open(output_file1, 'w') as output_handle1, open(output_file2, 'w') as output_handle2, open(qa_file, 'r') as qa_handle, open(label_file) as label_handle:
+    nrow = sum(1 for _ in open(qa_file, 'r', encoding='utf-8'))
+    with open(output_file1, 'w', encoding='utf-8') as output_handle1, open(output_file2, 'w', encoding='utf-8') as output_handle2, open(qa_file, 'r', encoding='utf-8') as qa_handle, open(label_file) as label_handle:
         # print("Writing to {} from {}".format(output_file, qa_file))
         cnt = 0
         for line, label in tqdm(zip(qa_handle, label_handle), total=nrow):

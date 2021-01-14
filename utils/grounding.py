@@ -1,10 +1,12 @@
 from multiprocessing import Pool
+from collections import defaultdict
 import spacy
 from spacy.matcher import Matcher
 from tqdm import tqdm
 import nltk
 import json
 import string
+import pdb
 
 
 __all__ = ['create_matcher_patterns', 'ground']
@@ -115,19 +117,20 @@ def ground_qa_pair(qa_pair):
         matcher = load_matcher(nlp, PATTERN_PATH)
 
     s, a = qa_pair
-    all_concepts = ground_mentioned_concepts(nlp, matcher, s, a)
-    answer_concepts = ground_mentioned_concepts(nlp, matcher, a)
+    all_concepts, all_spans = ground_mentioned_concepts(nlp, matcher, s, a)
+    answer_concepts, answer_spans = ground_mentioned_concepts(nlp, matcher, a)
     question_concepts = all_concepts - answer_concepts
+    question_spans = {c: all_spans[c] for c in question_concepts}
     if len(question_concepts) == 0:
-        question_concepts = hard_ground(nlp, s, CPNET_VOCAB)  # not very possible
+        question_concepts, question_spans = hard_ground(nlp, s, CPNET_VOCAB)  # not very possible
 
     if len(answer_concepts) == 0:
-        answer_concepts = hard_ground(nlp, a, CPNET_VOCAB)  # some case
+        answer_concepts, answer_spans = hard_ground(nlp, a, CPNET_VOCAB)  # some case
 
     # question_concepts = question_concepts -  answer_concepts
     question_concepts = sorted(list(question_concepts))
     answer_concepts = sorted(list(answer_concepts))
-    return {"sent": s, "ans": a, "qc": question_concepts, "ac": answer_concepts}
+    return {"sent": s, "ans": a, "qc": question_concepts, "ac": answer_concepts, 'qs': question_spans, 'as': answer_spans}
 
 
 def ground_mentioned_concepts(nlp, matcher, s, ans=None):
@@ -138,6 +141,7 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
 
     mentioned_concepts = set()
     span_to_concepts = {}
+    concept_to_spans = defaultdict(set)
 
     if ans is not None:
         ans_matcher = Matcher(nlp.vocab)
@@ -149,6 +153,7 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
         ans_mentions = set()
         for _, ans_start, ans_end in ans_match:
             ans_mentions.add((ans_start, ans_end))
+    
 
     for match_id, start, end in matches:
         if ans is not None:
@@ -189,6 +194,7 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
         # print(concepts_sorted)
         concepts_sorted.sort(key=len)
 
+        # pdb.set_trace()
         # mentioned_concepts.update(concepts_sorted[0:2])
 
         shortest = concepts_sorted[0:3]
@@ -201,9 +207,11 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
             lcs = lemmatize(nlp, c)
             intersect = lcs.intersection(shortest)
             if len(intersect) > 0:
-                mentioned_concepts.add(list(intersect)[0])
+                toadd = list(intersect)[0]
             else:
-                mentioned_concepts.add(c)
+                toadd = c
+            mentioned_concepts.add(toadd)
+            concept_to_spans[toadd].add(span)
 
         # if a mention exactly matches with a concept
 
@@ -212,31 +220,41 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
         # print(exact_match)
         assert len(exact_match) < 2
         mentioned_concepts.update(exact_match)
+        for concept in exact_match:
+            concept_to_spans[concept].add(span)
 
-    return mentioned_concepts
+    # pdb.set_trace()
+    return mentioned_concepts, concept_to_spans
 
 
 def hard_ground(nlp, sent, cpnet_vocab):
     sent = sent.lower()
     doc = nlp(sent)
     res = set()
+    spans = defaultdict(set)
     for t in doc:
         if t.lemma_ in cpnet_vocab:
             res.add(t.lemma_)
+            spans[t.lemma_].add(t.text)
+    old_sent = sent
     sent = " ".join([t.text for t in doc])
     if sent in cpnet_vocab:
         res.add(sent)
+        spans[sent].add(old_sent)
     try:
         assert len(res) > 0
     except Exception:
         print(f"for {sent}, concept not found in hard grounding.")
-    return res
+    return res, spans
 
 
 def match_mentioned_concepts(sents, answers, num_processes):
     res = []
     with Pool(num_processes) as p:
         res = list(tqdm(p.imap(ground_qa_pair, zip(sents, answers)), total=len(sents)))
+    # for qapair in tqdm(zip(sents, answers)):
+    #     res.append(ground_qa_pair(qapair))
+
     return res
 
 
@@ -290,6 +308,8 @@ def prune(data, cpnet_vocab_path):
             # print()
         item["qc"] = prune_qc
         item["ac"] = prune_ac
+        item['qs'] = {c: list(item['qs'][c]) for c in prune_qc}
+        item['as'] = {c: list(item['as'][c]) for c in prune_ac}
 
         prune_data.append(item)
     return prune_data
@@ -303,7 +323,7 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
 
     sents = []
     answers = []
-    with open(statement_path, 'r') as fin:
+    with open(statement_path, 'r', encoding='utf-8') as fin:
         lines = [line for line in fin]
 
     if debug:
@@ -328,7 +348,7 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
     res = prune(res, cpnet_vocab_path)
 
     # check_path(output_path)
-    with open(output_path, 'w') as fout:
+    with open(output_path, 'w', encoding='utf-8') as fout:
         for dic in res:
             fout.write(json.dumps(dic) + '\n')
 

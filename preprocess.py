@@ -19,6 +19,7 @@ input_paths = {
         'train': './data/csqa/train_rand_split.jsonl',
         'dev': './data/csqa/dev_rand_split.jsonl',
         'test': './data/csqa/test_rand_split_no_answers.jsonl',
+        'small': './data/csqa/small_data.jsonl',
     },
     'scitail': {
         'train': './data/scitail/SciTailV1.1/predictor_format/scitail_1.0_structure_train.jsonl',
@@ -43,7 +44,7 @@ input_paths = {
         'test': './data/obqa/OpenBookQA-V1-Sep2018/Data/Main/test.jsonl',
     },
     'cpnet': {
-        'csv': './data/cpnet/conceptnet-assertions-5.6.0.csv',
+        'csv': '/workspace/data/yicxu/conceptnet/conceptnet-assertions-5.7.0.csv',
     },
     'glove': {
         'txt': './data/glove/glove.6B.300d.txt',
@@ -59,11 +60,11 @@ input_paths = {
 
 output_paths = {
     'cpnet': {
-        'csv': './data/cpnet/conceptnet.en.csv',
-        'vocab': './data/cpnet/concept.txt',
+        'csv': '/workspace/data/yicxu/conceptnet/conceptnet.en.csv',
+        'vocab': '/workspace/data/yicxu/conceptnet/concept.txt',
         'patterns': './data/cpnet/matcher_patterns.json',
-        'unpruned-graph': './data/cpnet/conceptnet.en.unpruned.graph',
-        'pruned-graph': './data/cpnet/conceptnet.en.pruned.graph',
+        'unpruned-graph': '/workspace/data/yicxu/conceptnet/conceptnet.en.unpruned.graph',
+        'pruned-graph': '/workspace/data/yicxu/conceptnet/conceptnet.en.pruned.graph',
     },
     'glove': {
         'npy': './data/glove/glove.6B.300d.npy',
@@ -79,33 +80,47 @@ output_paths = {
             'train': './data/csqa/statement/train.statement.jsonl',
             'dev': './data/csqa/statement/dev.statement.jsonl',
             'test': './data/csqa/statement/test.statement.jsonl',
+            'small': './data/csqa/statement/small.statement.jsonl',
+            'vocab': './data/csqa/statement/vocab.json',
+        },
+        'statement_mask': {
+            'train': './data/csqa/statement/train.statement_mask.jsonl',
+            'dev': './data/csqa/statement/dev.statement_mask.jsonl',
+            'test': './data/csqa/statement/test.statement_mask.jsonl',
+            'small': './data/csqa/statement/small.statement_mask.jsonl',
             'vocab': './data/csqa/statement/vocab.json',
         },
         'statement-with-ans-pos': {
             'train': './data/csqa/statement/train.statement-with-ans-pos.jsonl',
             'dev': './data/csqa/statement/dev.statement-with-ans-pos.jsonl',
             'test': './data/csqa/statement/test.statement-with-ans-pos.jsonl',
+            'small': './data/csqa/statement/small.statement-with-ans-pos.jsonl',
         },
         'tokenized': {
             'train': './data/csqa/tokenized/train.tokenized.txt',
             'dev': './data/csqa/tokenized/dev.tokenized.txt',
             'test': './data/csqa/tokenized/test.tokenized.txt',
+            'small': './data/csqa/tokenized/small.tokenized.txt',
         },
         'grounded': {
             'train': './data/csqa/grounded/train.grounded.jsonl',
             'dev': './data/csqa/grounded/dev.grounded.jsonl',
             'test': './data/csqa/grounded/test.grounded.jsonl',
+            'small': './data/csqa/grounded/small.grounded.jsonl',
         },
         'paths': {
             'raw-train': './data/csqa/paths/train.paths.raw.jsonl',
             'raw-dev': './data/csqa/paths/dev.paths.raw.jsonl',
             'raw-test': './data/csqa/paths/test.paths.raw.jsonl',
+            'raw-small': './data/csqa/paths/small.paths.raw.jsonl',
             'scores-train': './data/csqa/paths/train.paths.scores.jsonl',
             'scores-dev': './data/csqa/paths/dev.paths.scores.jsonl',
             'scores-test': './data/csqa/paths/test.paths.scores.jsonl',
+            'scores-small': './data/csqa/paths/small.paths.scores.jsonl',
             'pruned-train': './data/csqa/paths/train.paths.pruned.jsonl',
             'pruned-dev': './data/csqa/paths/dev.paths.pruned.jsonl',
             'pruned-test': './data/csqa/paths/test.paths.pruned.jsonl',
+            'pruned-small': './data/csqa/paths/small.paths.pruned.jsonl',
             'adj-train': './data/csqa/paths/train.paths.adj.jsonl',
             'adj-dev': './data/csqa/paths/dev.paths.adj.jsonl',
             'adj-test': './data/csqa/paths/test.paths.adj.jsonl',
@@ -600,8 +615,17 @@ def main():
         ],
     }
 
+    my_routines = {
+        'common': [],
+        'csqa': [
+            {'func': convert_to_entailment, 'args': (input_paths['csqa']['train'], output_paths['csqa']['statement_mask']['train'], False, True)},
+            {'func': convert_to_entailment, 'args': (input_paths['csqa']['dev'], output_paths['csqa']['statement_mask']['dev'], False, True)},
+            {'func': convert_to_entailment, 'args': (input_paths['csqa']['test'], output_paths['csqa']['statement_mask']['test'], False, True)},
+        ]
+
+    }
     for rt in args.run:
-        for rt_dic in routines[rt]:
+        for rt_dic in my_routines[rt]:
             rt_dic['func'](*rt_dic['args'])
 
     print('Successfully run {}'.format(' '.join(args.run)))
